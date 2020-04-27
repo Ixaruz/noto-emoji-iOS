@@ -21,7 +21,6 @@ LDFLAGS = -lm `pkg-config --libs cairo`
 PNGQUANT = pngquant
 PYTHON = python3
 PNGQUANTFLAGS = --speed 1 --skip-if-larger --quality 85-95 --force
-# was 136/128, we use bigger images now :)
 BODY_DIMENSIONS = 170x160
 IMOPS := -size $(BODY_DIMENSIONS) canvas:none -compose copy -gravity center
 
@@ -39,70 +38,18 @@ ADD_GLYPHS_FLAGS = -a emoji_aliases.txt
 PUA_ADDER = map_pua_emoji.py
 VS_ADDER = add_vs_cmap.py # from nototools
 
-#EMOJI_SRC_DIR ?= png/128
 EMOJI_SRC_DIR ?= png/160
-#change flags source directory due to no need of creating flags via waveflag
-#FLAGS_SRC_DIR := third_party/region-flags/png
-FLAGS_SRC_DIR := png/flags
 
 BUILD_DIR := build
 EMOJI_DIR := $(BUILD_DIR)/emoji
-FLAGS_DIR := $(BUILD_DIR)/flags
-RESIZED_FLAGS_DIR := $(BUILD_DIR)/resized_flags
-RENAMED_FLAGS_DIR := $(BUILD_DIR)/renamed_flags
 QUANTIZED_DIR := $(BUILD_DIR)/quantized_pngs
 COMPRESSED_DIR := $(BUILD_DIR)/compressed_pngs
 
-# Unknown flag is PUA fe82b
-# Note, we omit some flags below that we support via aliasing instead.
-
-#technically this should be also useless now, but imma keep it for simplicity lol
-
-LIMITED_FLAGS = CN DE ES FR GB IT JP KR RU US
-SELECTED_FLAGS = AC AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ \
-	BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ \
-	CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ \
-	DE DJ DK DM DO DZ \
-	EC EE EG EH ER ES ET EU \
-	FI FJ FK FM FO FR \
-	GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY \
-	HK HN HR HT HU \
-	IC ID IE IL IM IN IO IQ IR IS IT \
-	JE JM JO JP \
-	KE KG KH KI KM KN KP KR KW KY KZ \
-	LA LB LC LI LK LR LS LT LU LV LY \
-	MA MC MD ME MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ \
-	NA NC NE NF NG NI NL NO NP NR NU NZ \
-	OM \
-	PA PE PF PG PH PK PL PM PN PR PS PT PW PY \
-	QA \
-	RE RO RS RU RW \
-	SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ \
-	TA TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ \
-	UA UG UN US UY UZ \
-	VA VC VE VG VI VN VU \
-	WF WS \
-	XK \
-	YE YT \
-	ZA ZM ZW \
-        GB-ENG GB-SCT GB-WLS
-
-ALL_FLAGS = $(basename $(notdir $(wildcard $(FLAGS_SRC_DIR)/*.png)))
-
-FLAGS = $(SELECTED_FLAGS)
-
-FLAG_NAMES = $(FLAGS:%=%.png)
-FLAG_FILES = $(addprefix $(FLAGS_DIR)/, $(FLAG_NAMES))
-RESIZED_FLAG_FILES = $(addprefix $(RESIZED_FLAGS_DIR)/, $(FLAG_NAMES))
-
-FLAG_GLYPH_NAMES = $(shell $(PYTHON) flag_glyph_name.py $(FLAGS))
-RENAMED_FLAG_NAMES = $(FLAG_GLYPH_NAMES:%=emoji_%.png)
-RENAMED_FLAG_FILES = $(addprefix $(RENAMED_FLAGS_DIR)/, $(RENAMED_FLAG_NAMES))
 
 EMOJI_NAMES = $(notdir $(wildcard $(EMOJI_SRC_DIR)/emoji_u*.png))
 EMOJI_FILES= $(addprefix $(EMOJI_DIR)/,$(EMOJI_NAMES)))
 
-ALL_NAMES = $(EMOJI_NAMES) $(RENAMED_FLAG_NAMES)
+ALL_NAMES = $(EMOJI_NAMES)
 
 ALL_QUANTIZED_FILES = $(addprefix $(QUANTIZED_DIR)/, $(ALL_NAMES))
 ALL_COMPRESSED_FILES = $(addprefix $(COMPRESSED_DIR)/, $(ALL_NAMES))
@@ -127,12 +74,6 @@ endif
 
 emoji: $(EMOJI_FILES)
 
-flags: $(FLAG_FILES)
-
-resized_flags: $(RESIZED_FLAG_FILES)
-
-renamed_flags: $(RENAMED_FLAG_FILES)
-
 quantized: $(ALL_QUANTIZED_FILES)
 
 compressed: $(ALL_COMPRESSED_FILES)
@@ -154,12 +95,8 @@ ifdef MISSING_ADDER
 endif
 
 
-$(EMOJI_DIR) $(FLAGS_DIR) $(RESIZED_FLAGS_DIR) $(RENAMED_FLAGS_DIR) $(QUANTIZED_DIR) $(COMPRESSED_DIR):
+$(EMOJI_DIR) $(QUANTIZED_DIR) $(COMPRESSED_DIR):
 	mkdir -p "$@"
-
-
-waveflag: waveflag.c
-	$(CC) $< -o $@ $(CFLAGS) $(LDFLAGS)
 
 
 # imagemagick's -extent operator munges the grayscale images in such a fashion
@@ -173,31 +110,6 @@ waveflag: waveflag.c
 
 $(EMOJI_DIR)/%.png: $(EMOJI_SRC_DIR)/%.png | $(EMOJI_DIR)
 	@convert $(IMOPS) "$<" -composite "PNG32:$@"
-
-#creating the flags? changed so it doesn't even create these flags and just copies the flag files from a directly
-#$(FLAGS_DIR)/%.png: $(FLAGS_SRC_DIR)/%.png ./waveflag | $(FLAGS_DIR)
-#	@./waveflag $(FLAGS_DIR)/ "$<"
-#
-$(FLAGS_DIR)/%.png: $(FLAGS_SRC_DIR)/%.png | $(FLAGS_DIR)
-
-#resizing should be alright
-$(RESIZED_FLAGS_DIR)/%.png: $(FLAGS_DIR)/%.png | $(RESIZED_FLAGS_DIR)
-	@convert $(IMOPS) "$<" -composite "PNG32:$@"
-
-#skipping this entirely, since the Flags got the right names already
-#flag-symlinks: $(RESIZED_FLAG_FILES) | $(RENAMED_FLAGS_DIR)
-#	@$(subst ^, ,                                  \
-#	  $(join                                       \
-#	    $(FLAGS:%=ln^-fs^../resized_flags/%.png^), \
-#	    $(RENAMED_FLAG_FILES:%=%; )                \
-#	   )                                           \
-#	 )
-#
-#$(RENAMED_FLAG_FILES): | flag-symlinks
-#
-#changing RENAMED_FLAGS_DIR to FLAGS_DIR since we didn't need to rename
-$(QUANTIZED_DIR)/%.png: $(RESIZED_FLAGS_DIR)/%.png | $(QUANTIZED_DIR)
-	@($(PNGQUANT) $(PNGQUANTFLAGS) -o "$@" "$<"; case "$$?" in "98"|"99") echo "reuse $<"; cp $< $@;; *) exit "$$?";; esac)
 
 $(QUANTIZED_DIR)/%.png: $(EMOJI_DIR)/%.png | $(QUANTIZED_DIR)
 	@($(PNGQUANT) $(PNGQUANTFLAGS) -o "$@" "$<"; case "$$?" in "98"|"99") echo "reuse $<";cp $< $@;; *) exit "$$?";; esac)
@@ -239,7 +151,7 @@ clean:
 	rm -f waveflag
 	rm -rf $(BUILD_DIR)
 
-.SECONDARY: $(EMOJI_FILES) $(FLAG_FILES) $(RESIZED_FLAG_FILES) $(RENAMED_FLAG_FILES) \
+.SECONDARY: $(EMOJI_FILES) \
   $(ALL_QUANTIZED_FILES) $(ALL_COMPRESSED_FILES)
 
 .PHONY:	clean flags emoji renamed_flags quantized compressed check_compress_tool
