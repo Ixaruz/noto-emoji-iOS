@@ -2,6 +2,9 @@
 # Noto Emoji
 Color and Black-and-White Noto emoji fonts, and tools for working with them.
 
+# Release
+Grab the latest release [here](https://github.com/Ixaruz/noto-emoji-iOS/releases).
+
 ## Building NotoColorEmoji
 
 Building NotoColorEmoji currently requires a Python 2.x wide build.  To build
